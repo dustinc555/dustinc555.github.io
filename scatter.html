@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Happiness at a glance</title>
+<style>
+  #scatter {
+    border: 1px solid #ccc;
+    background-color: #eaeaea;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  .tooltip {
+    position: absolute;
+    text-align: center;
+    width: auto;
+    height: auto;
+    padding: 5px;
+    font: 12px sans-serif;
+    background: lightsteelblue;
+    border: 0px;
+    border-radius: 8px;
+    pointer-events: none;
+  }
+  #static-tooltip {
+    position: absolute; /* Position the static tooltip */
+    pointer-events: none; /* Disable pointer events for the static tooltip */
+    visibility: hidden; /* Initially hidden */
+  }
+  .annotation {
+    font: 14px sans-serif;
+  }
+  #buttons {
+    text-align: center;
+    margin-top: 20px;
+  }
+  .nav-button {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 10px 24px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 12px;
+    width: 10em;
+  }
+  .nav-button:hover {
+    background-color: #45a049;
+  }
+  .row {
+    display: flex;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+  }
+  .row2 {
+    display: flex;
+  }
+  #countryList {
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 5px;
+    font-size: 14px;
+  }
+  .legend {
+    font: 12px sans-serif;
+    fill: black;
+  }
+</style>
+</head>
+<body>
+<div class="row">
+    <svg style="flex: 1;" id="scatter"></svg>
+    <div style="flex: 1;" id="countryList">
+        <h2 id="annotationTitle">Top 10 Happiest Countries for 2019</h2>
+        <p id="annotationMessage">hello</p>
+    </div>
+</div>
+<p>Color shade is relative to the filter set of countries to help zoom in on the subsets.</p>
+<div id="static-tooltip" class="tooltip"></div>
+<div class="row">
+</div>
+<div class="row" id="buttons">
+    <button class="nav-button" id="prev-btn" onclick="prevPage()">Previous</button>
+    <button class="nav-button" id="next-btn" onclick="nextPage()">Next</button>
+</div>
+<script type="module">
+import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+import * as topojson from "https://cdn.jsdelivr.net/npm/topojson-client@3/+esm";
+
+// Set the dimensions of the scatter
+const width = 960;
+const height = 600;
+
+// Create an SVG element to hold the scatter
+const svg = d3.select("#scatter")
+    .attr("width", width)
+    .attr("height", height);
+
+// Create a projection for the scatter
+const projection = d3.geoNaturalEarth1()
+    .scale(170)
+    .translate([width / 2, height / 2]);
+
+// Create a path generator
+const path = d3.geoPath()
+    .projection(projection);
+
+// Create a tooltip
+const tooltip = d3.select("body").append("div")
+    .attr("class", "tooltip")
+    .style("visibility", "hidden");
+
+/** Parameter Setup */ 
+
+let happiest_data2019 = [];
+let unhappiest_data2019 = [];
+
+let data = await d3.csv('data/2_stage_country/countries_renamed_happiness_report.csv');
+
+data = data.filter(d => d.Year === "2019")
+
+// Filter data for the year 2019 and get the top 10 happiest countries
+happiest_data2019 = data.sort((a, b) => b["Happiness Score"] - a["Happiness Score"])
+    .slice(0, 10);
+
+unhappiest_data2019 = data.sort((a, b) => a["Happiness Score"] - b["Happiness Score"])
+    .slice(0, 10);
+
+let param_index = 0;
+let parameters = [
+    {data: data, show_annotation: false, title: "2019 World Happiness Overview.", message: "Here is world happines shown with color in the year of 2019. Every nation for happiness that is given a score. The higher the score, the higher the general happiness of the country. Wealth, social support and many other factors are also scored similarly in the data."},
+    {data: happiest_data2019, highlightCountry: "Finland", show_annotation: true, title: "Filtering on top 10 Happy nations", message: "They are wealthy with lots of social support."},
+    {data: unhappiest_data2019, highlightCountry: "S. Sudan", show_annotation: true, title: "Filtering on bottom 10 unhappy nations", message: "They are nations of high instability and low social support."},
+]
+
+let state = {
+    param_index: param_index,
+    parameters: parameters
+}
+
+/** Render Function */
+function render(state) {
+
+    let param_index = state.param_index;
+
+    let data = state.parameters[param_index].data; 
+    let show_annotation = state.parameters[param_index].show_annotation; 
+    let title = state.parameters[param_index].title; 
+    let message = state.parameters[param_index].message;
+    let highlightCountry = state.parameters[param_index].highlightCountry;
+
+    // Clear the existing scatter and annotations
+    svg.selectAll("*").remove();
+    d3.select("#countryList").selectAll(".annotation").remove();
+
+    // Add a gradient definition for the legend
+    svg.append("defs")
+        .append("linearGradient")
+        .attr("id", "legend-gradient")
+        .attr("x1", "0%")
+        .attr("x2", "100%")
+        .attr("y1", "0%")
+        .attr("y2", "0%")
+        .selectAll("stop")
+        .data([
+            {offset: "0%", color: "red"},
+            {offset: "50%", color: "yellow"},
+            {offset: "100%", color: "green"}
+        ])
+        .enter().append("stop")
+        .attr("offset", d => d.offset)
+        .attr("stop-color", d => d.color);
+
+    // Add the legend
+    const legendWidth = 300;
+    const legendHeight = 20;
+
+    svg.append("rect")
+        .attr("x", width/2 - legendWidth/2)
+        .attr("y", height - legendHeight - 20)
+        .attr("width", legendWidth)
+        .attr("height", legendHeight)
+        .style("fill", "url(#legend-gradient)");
+
+    svg.append("text")
+        .attr("x", width/2 - legendWidth/2 - 25)
+        .attr("y", height - legendHeight - 25)
+        .attr("class", "legend")
+        .text("Unhappy");
+
+    svg.append("text")
+        .attr("x", width/2 + legendWidth/2 + 25)
+        .attr("y", height - legendHeight - 25)
+        .attr("text-anchor", "end")
+        .attr("class", "legend")
+        .text("Happy");
+
+    /** Render Messaging */
+    document.getElementById('annotationTitle').innerHTML = title;
+    document.getElementById('annotationMessage').innerHTML = message;
+    if (show_annotation) {            
+        // Create annotations
+        const annotations = d3.select("#countryList");
+        data.forEach((d, i) => {
+            annotations.append("div")
+                .attr("class", "annotation")
+                .html(`<strong>${i + 1}. ${d.Country}</strong>: ${d["Happiness Score"]}`)
+                .style("margin-bottom", "5px");
+        });
+    }
+}
+
+render(state);
+
+window.prevPage = function() {
+    if (state.param_index > 0) {
+        state.param_index -= 1;
+        render(state);
+    } else {
+        window.location.href = 'index.html';
+    }
+}
+
+window.nextPage = function() {
+    console.log(state.param_index);
+    console.log(state.param_index < state.parameters.length - 1)
+    if (state.param_index < state.parameters.length - 1) {
+        state.param_index += 1;
+        render(state);
+    } else {
+        window.location.href = 'scatter.html';
+    }
+}
+</script>
+</body>
+</html>
