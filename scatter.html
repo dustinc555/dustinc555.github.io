@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Happiness at a glance</title>
+<title>Trend Lines</title>
 <style>
   #scatter {
     border: 1px solid #ccc;
@@ -117,9 +117,12 @@ let data = await d3.csv('data/2_stage_country/countries_renamed_happiness_report
 
 let param_index = 0;
 let parameters = [
-    {title: "Plot along with Social Support", message: "", data: data, field: 'Social support', show_annotation: false},
-    {title: "Plot along with GDP per capita", message: "blah", data: data, field: 'GDP per capita', show_annotation: false},
-    {title: "Plot along with Healthy life expectancy", message: "blah", data: data, field: 'Healthy life expectancy', show_annotation: false},
+    {title: "Lets explore the fields and their correlation to the happiness score.", message: "Now that we have made general observations for the world happiness in 2019, we will expand our data to include the years 2015 - 2019. We will observe the fields along with the happiness score, plot a trend line and observe how correlated the field may be to happiness. Just to note though, every nation is a very complex situation of many individuals and history, there is never a 1-1 indicator that can be used as a definite."},
+    {title: "Here we plot along with 'Social support'.", message: "The amount of social support appears related to happiness.", data: data, field: 'Social support'},
+    {title: "Plot along with 'GDP per capita'", message: "GDP seems to be a good correlation.", data: data, field: 'GDP per capita'},
+    {title: "Plot along with 'Healthy life expectancy'", message: "Life expectency appears correlated as well, but it could be implied by GDP and social support. Given the nation does not have civil unrest.", data: data, field: 'Healthy life expectancy'},
+    {title: "Plot along with 'Generosity'", message: "Generosity as a field does not seem strickly related to the happiness score.", data: data, field: 'Generosity'},
+    {title: "The best indication of happiness we have in the data is the field 'GDP per capita'", message: "The worst is the 'Generosity'."}
 ]
 
 let state = {
@@ -131,86 +134,135 @@ let state = {
 function render(state) {
     let param_index = state.param_index;
     let data = state.parameters[param_index].data; 
-    let show_annotation = state.parameters[param_index].show_annotation; 
     let title = state.parameters[param_index].title; 
     let message = state.parameters[param_index].message;
-    let compareField = state.parameters[param_index].field
-
-    console.log('compare field');
-    console.log(compareField);
+    let compareField = state.parameters[param_index].field;
 
     // Clear the existing scatter and annotations
     svg.selectAll("*").remove();
 
-    // Set the dimensions and margins of the graph
-    const margin = {top: 20, right: 30, bottom: 40, left: 50};
-    const width = 960 - margin.left - margin.right;
-    const height = 600 - margin.top - margin.bottom;
+    const scatter = document.getElementById('scatter');
+    if (data) {
+        scatter.style.display = 'inline-block';
+        // Set the dimensions and margins of the graph
+        const margin = {top: 20, right: 30, bottom: 40, left: 50};
+        const width = 960 - margin.left - margin.right;
+        const height = 600 - margin.top - margin.bottom;
 
-    // Append the svg object to the body of the page
-    const scatterSvg = d3.select("#scatter")
-        .attr("width", width + margin.left + margin.right)
-        .attr("height", height + margin.top + margin.bottom)
-        .append("g")
-        .attr("transform", `translate(${margin.left},${margin.top})`);
+        // Append the svg object to the body of the page
+        const scatterSvg = d3.select("#scatter")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // Add X axis
-    const x = d3.scaleLinear()
-        .domain([0, d3.max(data, d => +d[compareField])])
-        .range([ 0, width ]);
-    scatterSvg.append("g")
-        .attr("transform", `translate(0,${height})`)
-        .call(d3.axisBottom(x))
-        .append("text")
-        .attr("y", margin.bottom - 10)
-        .attr("x", width)
-        .attr("text-anchor", "end")
-        .attr("stroke", "black")
-        .text(compareField);
+        // Add X axis
+        const x = d3.scaleLinear()
+            .domain([0, d3.max(data, d => +d[compareField])])
+            .range([ 0, width ]);
+        scatterSvg.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x))
+            .append("text")
+            .attr("y", margin.bottom - 10)
+            .attr("x", width)
+            .attr("text-anchor", "end")
+            .attr("stroke", "black")
+            .text(compareField);
 
-    // Add Y axis
-    const y = d3.scaleLinear()
-        .domain([0, d3.max(data, d => +d['Happiness Score'])])
-        .range([ height, 0]);
-    scatterSvg.append("g")
-        .call(d3.axisLeft(y))
-        .append("text")
-        .attr("transform", "rotate(-90)")
-        .attr("y", margin.left -20)
-        .attr("dy", "-5.1em")
-        .attr("text-anchor", "end")
-        .attr("stroke", "black")
-        .text("Happiness Score");
+        // Add Y axis
+        const y = d3.scaleLinear()
+            .domain([0, d3.max(data, d => +d['Happiness Score'])])
+            .range([ height, 0]);
+        scatterSvg.append("g")
+            .call(d3.axisLeft(y))
+            .append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("y", margin.left - 20)
+            .attr("dy", "-5.1em")
+            .attr("text-anchor", "end")
+            .attr("stroke", "black")
+            .text("Happiness Score");
 
-    // Add dots
-    scatterSvg.append('g')
-        .selectAll("dot")
-        .data(data)
-        .enter()
-        .append("circle")
-        .attr("cx", d => x(d[compareField]))
-        .attr("cy", d => y(d['Happiness Score']))
-        .attr("r", 5)
-        .style("fill", "#69b3a2");
+        // Add dots
+        scatterSvg.append('g')
+            .selectAll("dot")
+            .data(data)
+            .enter()
+            .append("circle")
+            .attr("cx", d => x(d[compareField]))
+            .attr("cy", d => y(d['Happiness Score']))
+            .attr("r", 5)
+            .style("fill", "#69b3a2");
 
-    // Tooltip functionality
-    scatterSvg.selectAll("circle")
-        .on("mouseover", (event, d) => {
-            tooltip.style("visibility", "visible")
-                   .html(`Country: ${d.Country}<br>Happiness Score: ${d['Happiness Score']}<br>Social support: ${d['Social support']}`);
-        })
-        .on("mousemove", (event) => {
-            tooltip.style("top", (event.pageY - 10) + "px")
-                   .style("left", (event.pageX + 10) + "px");
-        })
-        .on("mouseout", () => {
-            tooltip.style("visibility", "hidden");
-        });
+        // Tooltip functionality
+        scatterSvg.selectAll("circle")
+            .on("mouseover", (event, d) => {
+                tooltip.style("visibility", "visible")
+                    .html(`Country: ${d.Country}<br>Happiness Score: ${d['Happiness Score']}<br>Social support: ${d['Social support']}`);
+            })
+            .on("mousemove", (event) => {
+                tooltip.style("top", (event.pageY - 10) + "px")
+                    .style("left", (event.pageX + 10) + "px");
+            })
+            .on("mouseout", () => {
+                tooltip.style("visibility", "hidden");
+            });
 
-    /** Render Messaging */
+        // Calculate linear regression
+        const xValues = data.map(d => +d[compareField]);
+        const yValues = data.map(d => +d['Happiness Score']);
+        const regression = linearRegression(xValues, yValues);
+
+        // Add trend line
+        scatterSvg.append("line")
+            .attr("x1", x(d3.min(xValues)))
+            .attr("y1", y(regression.slope * d3.min(xValues) + regression.intercept))
+            .attr("x2", x(d3.max(xValues)))
+            .attr("y2", y(regression.slope * d3.max(xValues) + regression.intercept))
+            .attr("stroke", "red")
+            .attr("stroke-width", 2);
+
+        // Display R² value
+        const rSquared = calculateRSquared(xValues, yValues, regression.slope, regression.intercept);
+        scatterSvg.append("text")
+            .attr("x", width - margin.right)
+            .attr("y", height - margin.bottom)
+            .attr("text-anchor", "end")
+            .attr("stroke", "black")
+            .text(`R² = ${rSquared.toFixed(2)}`);
+    } else {
+        scatter.style.display = 'none';
+    }
+
+    // Render Messaging
     document.getElementById('annotationTitle').innerHTML = title;
     document.getElementById('annotationMessage').innerHTML = message;
 }
+
+// Helper function to calculate linear regression
+function linearRegression(x, y) {
+    const n = x.length;
+    const xMean = d3.mean(x);
+    const yMean = d3.mean(y);
+    const xyMean = d3.mean(x.map((xi, i) => xi * y[i]));
+    const xSquareMean = d3.mean(x.map(xi => xi * xi));
+
+    const slope = (xyMean - xMean * yMean) / (xSquareMean - xMean * xMean);
+    const intercept = yMean - slope * xMean;
+
+    return { slope, intercept };
+}
+
+// Helper function to calculate R²
+function calculateRSquared(x, y, slope, intercept) {
+    const yMean = d3.mean(y);
+    const ssTotal = d3.sum(y.map(yi => Math.pow(yi - yMean, 2)));
+    const ssResidual = d3.sum(y.map((yi, i) => Math.pow(yi - (slope * x[i] + intercept), 2)));
+
+    return 1 - (ssResidual / ssTotal);
+}
+
 
 render(state);
 
