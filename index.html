@@ -80,7 +80,6 @@
         <p id="annotationMessage">hello</p>
     </div>
 </div>
-<p>Color shade is relative to the filter set of countries to help zoom in on the subsets.</p>
 <div id="static-tooltip" class="tooltip"></div>
 <div class="row">
 </div>
@@ -290,8 +289,6 @@ window.prevPage = function() {
 }
 
 window.nextPage = function() {
-    console.log(state.param_index);
-    console.log(state.param_index < state.parameters.length - 1)
     if (state.param_index < state.parameters.length - 1) {
         state.param_index += 1;
         render(state);

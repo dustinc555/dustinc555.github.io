@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Exploration</title>
+<style>
+  #controlDiv {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    padding: 5px;
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 12px;
+    z-index: 1000;
+  }
+  #controlDiv select,
+  #controlDiv input[type="range"] {
+    width: 100px;
+    margin-bottom: 5px;
+  }
+  #map {
+    border: 1px solid #ccc;
+    background-color: #eaeaea;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  #scatter {
+    border: 1px solid #ccc;
+    background-color: #eaeaea;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  .tooltip {
+    position: absolute;
+    text-align: center;
+    width: auto;
+    height: auto;
+    padding: 5px;
+    font: 12px sans-serif;
+    background: lightsteelblue;
+    border: 0px;
+    border-radius: 8px;
+    pointer-events: none;
+  }
+  .annotation {
+    font: 14px sans-serif;
+  }
+  #buttons {
+    text-align: center;
+    margin-top: 20px;
+  }
+  .nav-button {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 10px 24px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 12px;
+    width: 10em;
+  }
+  .nav-button:hover {
+    background-color: #45a049;
+  }
+  .row {
+    display: flex;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+  }
+  .row2 {
+    display: flex;
+  }
+  .legend {
+    font: 12px sans-serif;
+    fill: black;
+  }
+</style>
+</head>
+<body>
+<div id="controlDiv">
+    <label id="sliderLabel" for="slider">Year: 2015</label>
+    <input type="range" id="slider" min="2015" max="2019" value="2015">
+    <label for="selectBox">Field:</label>
+    <select id="selectBox">
+        <option value="GDP per capita">GDP per capita</option>
+        <option value="Social support">Social support</option>
+        <option value="Healthy life expectancy">Healthy life expectancy</option>
+        <option value="Freedom to make life choices">Freedom to make life choices</option>
+        <option value="Perceptions of corruption">Perceptions of corruption</option>
+        <option value="Generosity">Generosity</option>
+    </select>
+    <label for="selectBoxColor">Color Map By:</label>
+    <select id="selectBoxColor">
+        <option value="Happiness Score">Happiness Score</option>
+        <option value="GDP per capita">GDP per capita</option>
+        <option value="Social support">Social support</option>
+        <option value="Healthy life expectancy">Healthy life expectancy</option>
+        <option value="Freedom to make life choices">Freedom to make life choices</option>
+        <option value="Perceptions of corruption">Perceptions of corruption</option>
+        <option value="Generosity">Generosity</option>
+    </select>
+</div>
+<div class="row">
+    <svg id="map"></svg>
+</div>
+<div class="row">
+    <svg id="scatter"></svg>
+</div>
+<div class="row" id="buttons">
+    <button class="nav-button" id="prev-btn" onclick="prevPage()">Previous</button>
+</div>
+<script type="module">
+import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+import * as topojson from "https://cdn.jsdelivr.net/npm/topojson-client@3/+esm";
+
+// Set the dimensions of the graphs
+const width = 960;
+const height = 600;
+
+// Create an SVG element to hold the scatter
+const svgScatter = d3.select("#scatter")
+    .attr("width", width)
+    .attr("height", height);
+
+// Create an SVG element to hold the map
+const svgMap = d3.select("#map")
+    .attr("width", width)
+    .attr("height", height);
+
+// Create a projection for the map
+const projection = d3.geoNaturalEarth1()
+    .scale(170)
+    .translate([width / 2, height / 2]);
+
+// Create a path generator
+const path = d3.geoPath()
+    .projection(projection);
+
+// Create a tooltip
+const tooltip = d3.select("body").append("div")
+    .attr("class", "tooltip")
+    .style("visibility", "hidden");
+
+/** Parameter Setup */ 
+let data = await d3.csv('data/2_stage_country/countries_renamed_happiness_report.csv');
+
+let filters = {year: '2019', compareField: 'GDP per capita', mapColor: "Happiness Score"};
+
+let state = {
+    data: data,
+    filters: filters
+};
+
+/** Render Map Function */
+function renderMap(data, mapColor) {
+
+    // Clear the existing map and annotations
+    svgMap.selectAll("*").remove();
+
+    // Add a gradient definition for the legend
+    svgMap.append("defs")
+        .append("linearGradient")
+        .attr("id", "legend-gradient")
+        .attr("x1", "0%")
+        .attr("x2", "100%")
+        .attr("y1", "0%")
+        .attr("y2", "0%")
+        .selectAll("stop")
+        .data([
+            {offset: "0%", color: "red"},
+            {offset: "50%", color: "yellow"},
+            {offset: "100%", color: "green"}
+        ])
+        .enter().append("stop")
+        .attr("offset", d => d.offset)
+        .attr("stop-color", d => d.color);
+
+    // Add the legend
+    const legendWidth = 300;
+    const legendHeight = 20;
+
+    svgMap.append("rect")
+        .attr("x", width/2 - legendWidth/2)
+        .attr("y", height - legendHeight - 20)
+        .attr("width", legendWidth)
+        .attr("height", legendHeight)
+        .style("fill", "url(#legend-gradient)");
+
+    svgMap.append("text")
+        .attr("x", width/2 - legendWidth/2 - 25)
+        .attr("y", height - legendHeight - 25)
+        .attr("class", "legend")
+        .text("Low");
+
+    svgMap.append("text")
+        .attr("x", width/2 + legendWidth/2 + 25)
+        .attr("y", height - legendHeight - 25)
+        .attr("text-anchor", "end")
+        .attr("class", "legend")
+        .text("High");
+
+    // Load the data
+    d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then((world) => {
+        const countries = topojson.feature(world, world.objects.countries).features;
+
+        const colorScale = d3.scaleSequential(d3.interpolateRdYlGn)
+            .domain(d3.extent(data, d => +d[mapColor]));
+        // Create a map for the field scores
+        const fieldScores = new Map(data.map(d => [d.Country, +d[mapColor]]));
+
+        // Draw the countries
+        svgMap.selectAll("path")
+            .data(countries)
+            .enter().append("path")
+            .attr("d", path)
+            .attr("fill", d => {
+                const score = fieldScores.get(d.properties.name);
+                return score != null ? colorScale(score) : '#ccc';
+            })
+            .attr("stroke", "white")
+            .on("mouseover", function(event, d) {
+                const score = fieldScores.get(d.properties.name);
+                tooltip.style("visibility", "visible")
+                    .html(`<strong>${d.properties.name}</strong><br>Happiness Score: ${score != null ? score : 'N/A'}`);
+            })
+            .on("mousemove", function(event) {
+                tooltip.style("top", (event.pageY - 10) + "px")
+                    .style("left", (event.pageX + 10) + "px");
+            })
+            .on("mouseout", function() {
+                tooltip.style("visibility", "hidden");
+            });
+    });
+}
+
+/** Render Scatter Function */
+function renderScatter(data, compareField) {
+
+    // Clear the existing scatter and annotations
+    svgScatter.selectAll("*").remove();
+
+    // Set the dimensions and margins of the graph
+    const margin = {top: 20, right: 30, bottom: 40, left: 50};
+    const myWidth = width - margin.left - margin.right;
+    const myHeight = height - margin.top - margin.bottom;
+
+    // Append the svg object to the body of the page
+    const g = svgScatter
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    // Add X axis
+    const x = d3.scaleLinear()
+        .domain([0, d3.max(data, d => +d[compareField])])
+        .range([ 0, myWidth ]);
+    g.append("g")
+        .attr("transform", `translate(0,${myHeight})`)
+        .call(d3.axisBottom(x))
+        .append("text")
+        .attr("y", margin.bottom - 10)
+        .attr("x", myWidth)
+        .attr("text-anchor", "end")
+        .attr("stroke", "black")
+        .text(compareField);
+
+    // Add Y axis
+    const y = d3.scaleLinear()
+        .domain([0, d3.max(data, d => +d['Happiness Score'])])
+        .range([ myHeight, 0]);
+    g.append("g")
+        .call(d3.axisLeft(y))
+        .append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("y", -margin.left + 20)
+        .attr("dy", "-5.1em")
+        .attr("text-anchor", "end")
+        .attr("stroke", "black")
+        .text("Happiness Score");
+
+    // Add dots
+    g.append('g')
+        .selectAll("dot")
+        .data(data)
+        .enter()
+        .append("circle")
+        .attr("cx", d => x(d[compareField]))
+        .attr("cy", d => y(d['Happiness Score']))
+        .attr("r", 5)
+        .style("fill", "#69b3a2");
+
+    // Tooltip functionality
+    g.selectAll("circle")
+        .on("mouseover", (event, d) => {
+            tooltip.style("visibility", "visible")
+                .html(`Country: ${d.Country}<br>Happiness Score: ${d['Happiness Score']}<br>Social support: ${d['Social support']}`);
+        })
+        .on("mousemove", (event) => {
+            tooltip.style("top", (event.pageY - 10) + "px")
+                .style("left", (event.pageX + 10) + "px");
+        })
+        .on("mouseout", () => {
+            tooltip.style("visibility", "hidden");
+        });
+
+    // Calculate linear regression
+    const xValues = data.map(d => +d[compareField]);
+    const yValues = data.map(d => +d['Happiness Score']);
+    const regression = linearRegression(xValues, yValues);
+
+    // Add trend line
+    g.append("line")
+        .attr("x1", x(d3.min(xValues)))
+        .attr("y1", y(regression.slope * d3.min(xValues) + regression.intercept))
+        .attr("x2", x(d3.max(xValues)))
+        .attr("y2", y(regression.slope * d3.max(xValues) + regression.intercept))
+        .attr("stroke", "red")
+        .attr("stroke-width", 2);
+
+    // Display R² value
+    const rSquared = calculateRSquared(xValues, yValues, regression.slope, regression.intercept);
+    g.append("text")
+        .attr("x", myWidth - margin.right)
+        .attr("y", myHeight - margin.bottom)
+        .attr("text-anchor", "end")
+        .attr("stroke", "black")
+        .text(`R² = ${rSquared.toFixed(2)}`);
+}
+
+
+// Helper function to calculate linear regression
+function linearRegression(x, y) {
+    const n = x.length;
+    const xMean = d3.mean(x);
+    const yMean = d3.mean(y);
+    const xyMean = d3.mean(x.map((xi, i) => xi * y[i]));
+    const xSquareMean = d3.mean(x.map(xi => xi * xi));
+
+    const slope = (xyMean - xMean * yMean) / (xSquareMean - xMean * xMean);
+    const intercept = yMean - slope * xMean;
+
+    return { slope, intercept };
+}
+
+// Helper function to calculate R²
+function calculateRSquared(x, y, slope, intercept) {
+    const yMean = d3.mean(y);
+    const ssTotal = d3.sum(y.map(yi => Math.pow(yi - yMean, 2)));
+    const ssResidual = d3.sum(y.map((yi, i) => Math.pow(yi - (slope * x[i] + intercept), 2)));
+
+    return 1 - (ssResidual / ssTotal);
+}
+
+function render(state) {
+    let data = state.data;
+    let filters = state.filters;
+
+    data = data.filter(d => d.Year === filters.year);
+    renderMap(data, filters.mapColor);
+    renderScatter(data, filters.compareField);
+}
+
+render(state);
+
+window.prevPage = function() {
+    window.location.href = 'scatter.html';
+}
+
+// setup controls
+document.getElementById('slider').addEventListener('input', function() {
+    const value = this.value;
+    document.getElementById('sliderLabel').innerText = `Year: ${value}`;
+    state.filters.year = value;
+    render(state);
+});
+
+document.getElementById('selectBox').addEventListener('change', function() {
+    const value = this.value;
+    state.filters.compareField = value;
+    render(state);
+});
+
+document.getElementById('selectBoxColor').addEventListener('change', function() {
+    const value = this.value;
+    state.filters.mapColor = value;
+    render(state);
+});
+
+</script>
+</body>
+</html>
